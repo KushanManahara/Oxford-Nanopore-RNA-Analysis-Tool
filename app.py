@@ -7,8 +7,7 @@ import os
 def login():
     def on_login():
         try:
-            ssh_client = create_ssh_connection(
-                host, username, password)
+            ssh_client = create_ssh_connection(host, username, password)
 
             toast_placeholder = st.empty()
             toast_placeholder.success("Login successful!")
@@ -45,12 +44,8 @@ def login():
         print(host)
         print(username)
         print(password)
-        if not login_button_placeholder.button(
-                "Login", on_click=on_login):
+        if not login_button_placeholder.button("Login", on_click=on_login):
             st.error("Invalid hostname, username or password, . Please try again.")
-
-    # if login_status == False:
-    # st.error("Invalid username or password. Please try again.")
 
 
 def create_ssh_connection(host, username, password):
@@ -61,25 +56,23 @@ def create_ssh_connection(host, username, password):
 
 
 def create_project_dir(ssh_client, folder_name):
-    ssh_client.exec_command(f'mkdir -p WebApp/{folder_name}')
-    ssh_client.exec_command(f'mkdir -p WebApp/{folder_name}/test-dir')
-    ssh_client.exec_command(f'mkdir -p WebApp/{folder_name}/EXPORTS')
+    ssh_client.exec_command(f"mkdir -p WebApp/{folder_name}")
+    ssh_client.exec_command(f"mkdir -p WebApp/{folder_name}/test-dir")
+    ssh_client.exec_command(f"mkdir -p WebApp/{folder_name}/EXPORTS")
     ssh_client.exec_command(
-        f'echo "Hello World" > WebApp/{folder_name}/hello-world.txt')
+        f'echo "Hello World" > WebApp/{folder_name}/hello-world.txt'
+    )
+
+
+def download_file(ssh_client, remote_path, local_path):
+    sftp_client = ssh_client.open_sftp()
+    sftp_client.get(remote_path, local_path)
+    sftp_client.close()
 
 
 def create_zip_folder(ssh_client, folder_path, zip_file_path):
     # Execute the zip command remotely to create the zip file
-    ssh_client.exec_command(f'zip -r {zip_file_path} {folder_path}')
-
-
-def download_zip_file(ssh_client, remote_zip_file_path, local_zip_file_path):
-    # Obtain the path to the user's "Downloads" directory
-    local_zip_file_path = os.path.expanduser("~/Downloads/remote_zipfile.zip")
-
-    # Execute the scp command remotely to download the zip file
-    ssh_client.exec_command(
-        f'scp {remote_zip_file_path} {local_zip_file_path}')
+    ssh_client.exec_command(f"zip -r {zip_file_path} {folder_path}")
 
 
 def project_init():
@@ -90,48 +83,72 @@ def project_init():
 def blasting(host, username, password):
     if not st.button("Back", on_click=logout):
         st.title("Blasting Page")
-        folder_name = st.text_input(
-            "Project Name")
-        uploaded_file = st.file_uploader(
-            "Upload FAST5 file as a zip", type=["zip"])
+        folder_name = st.text_input("Project Name")
+        uploaded_file = st.file_uploader("Upload FAST5 file as a zip", type=["zip"])
 
-        creating_folder_status = st.empty()
-        upload_file_status = st.empty()
+        project_status = st.empty()
 
         if st.button("Start Blasting"):
-            creating_folder_status.info("Creating folder...")
             try:
-                ssh_client = create_ssh_connection(
-                    host, username, password)
+                project_status.info("Project initializing started...")
+                ssh_client = create_ssh_connection(host, username, password)
                 create_project_dir(ssh_client, folder_name)
-                st.success(f"Folder '{folder_name}' created successfully!")
+                project_status.success(
+                    f"Project '{folder_name}' is initiated successfully!"
+                )
+                time.sleep(1)
+                project_status.empty()
+
                 ssh_client.close()
             except Exception as e:
-                creating_folder_status.error(f"An error occurred: {e}")
+                project_status.error(f"An error occurred: {e}")
+                time.sleep(3)
+                project_status.empty()
 
             if uploaded_file is not None:
-                creating_folder_status.empty()
-                upload_file_status.info("Uploading file...")
+                project_status.empty()
                 try:
-                    ssh_client = create_ssh_connection(
-                        host, username, password)
+                    project_status.info("Uploading project files...")
+                    ssh_client = create_ssh_connection(host, username, password)
                     with ssh_client.open_sftp() as sftp:
-                        with sftp.file(f"WebApp/{folder_name}/{uploaded_file.name}", "wb") as f:
+                        with sftp.file(
+                            f"WebApp/{folder_name}/{uploaded_file.name}", "wb"
+                        ) as f:
                             f.write(uploaded_file.getvalue())
-                    upload_file_status.success("File uploaded successfully!")
+                    project_status.success("Project file are uploaded successfully!")
 
+                    # blasting is started
+                    time.sleep(1)
+                    project_status.info("Blasting started...")
+                    time.sleep(2)
+                    project_status.success("Blasting Completed...")
+                    time.sleep(2)
+                    project_status.empty()
+
+                    # TODO:
+
+                    # create a zip file of whole final project
                     create_zip_folder(
-                        ssh_client, f"WebApp/{folder_name}", f"WebApp/{folder_name}/EXPORTS/exports.zip")
+                        ssh_client,
+                        f"WebApp/{folder_name}",
+                        f"WebApp/{folder_name}/EXPORTS/exports.zip",
+                    )
 
-                    upload_file_status.success("File Downloading...")
-                    # Download the folder from the remote server                # Create the zip file on the remote server
-                    download_zip_file(
-                        ssh_client, f"WebApp/{folder_name}/exports.zip", ".")
-                    upload_file_status.success("File Downloaded successfully!")
+                    project_status.info("Completed project files are Downloading...")
+
+                    # Download the project export file from the remote server
+                    download_file(
+                        ssh_client,
+                        f"WebApp/{folder_name}/EXPORTS/exports.zip",
+                        "exports.zip",
+                    )
+
+                    project_status.success(
+                        "Completed project files are Downloaded successfully!"
+                    )
 
                 except Exception as e:
-                    upload_file_status.error(
-                        f"An error occurred while uploading file: {e}")
+                    project_status.error(f"An error occurred while uploading file: {e}")
                     ssh_client.close()
 
 
@@ -151,8 +168,9 @@ def main():
         login()
 
     else:
-        blasting(st.session_state.host, st.session_state.username,
-                 st.session_state.password)
+        blasting(
+            st.session_state.host, st.session_state.username, st.session_state.password
+        )
 
 
 # Run the main function
